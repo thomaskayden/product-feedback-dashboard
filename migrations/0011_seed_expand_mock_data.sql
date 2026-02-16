@@ -1,0 +1,95 @@
+-- Expand mock data: ~100 additional rows across themes, sources, sentiments, and time periods.
+-- Gives Workers AI more variety to summarize. No schema changes.
+
+-- Today: Auth, Support, API, Email, Docs, Issue/Ticket Status, Link/Validation
+INSERT INTO feedback (source, sentiment, comment, timestamp) VALUES
+('Customer Support Tickets', 'negative', 'SSO login fails for Okta integration; redirects to wrong URL.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 minutes')),
+('GitHub issues', 'negative', 'Session expires unexpectedly; have to sign in again every hour.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-15 minutes')),
+('Discord', 'neutral', 'Auth token refresh not working on mobile app.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-75 minutes')),
+('Email', 'negative', 'Cannot log in after IdP certificate rotation.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-85 minutes')),
+('community forums', 'negative', 'Password reset flow broken; link goes to 404.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-95 minutes')),
+('Customer Support Tickets', 'negative', 'Support has not replied to ticket #9923 in 5 days.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-115 minutes')),
+('Discord', 'negative', 'Response time from support team unacceptable for enterprise.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-125 minutes')),
+('GitHub issues', 'neutral', 'Waiting 4 days for support; issue is blocking production.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-135 minutes')),
+('Customer Support Tickets', 'negative', 'API returning 504 on bulk zone import.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-155 minutes')),
+('GitHub issues', 'negative', 'Gateway timeout when fetching 10k records via API.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-165 minutes')),
+('X/Twitter', 'negative', 'API 504 errors all morning; need immediate fix.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-175 minutes')),
+('Discord', 'neutral', 'API endpoint timing out under moderate load.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-185 minutes')),
+('Email', 'negative', 'Verification email not received; tried twice.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-205 minutes')),
+('GitHub issues', 'negative', 'Notification emails delayed 6+ hours.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-215 minutes')),
+('community forums', 'neutral', 'Email delivery inconsistent for password reset.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-225 minutes')),
+('Customer Support Tickets', 'negative', 'Documentation for Workers KV outdated; examples fail.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-245 minutes')),
+('GitHub issues', 'neutral', 'Docs scattered across multiple pages; hard to find.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-255 minutes')),
+('Discord', 'negative', 'Guide says one thing, API expects different format.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-265 minutes')),
+('GitHub issues', 'positive', 'Ticket status visibility improved; easier to track.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-275 minutes')),
+('Customer Support Tickets', 'positive', 'Status updates are clear now; good progress.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-285 minutes')),
+('Discord', 'positive', 'Confusion about issue state resolved with new labels.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-295 minutes')),
+('GitHub issues', 'negative', 'Reset link in email expired before we could click.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-305 minutes')),
+('community forums', 'neutral', 'Validation error on form; error message unclear.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-315 minutes')),
+('Customer Support Tickets', 'negative', 'Broken link in dashboard to status page.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-325 minutes')),
+('GitHub issues', 'positive', 'Needs info workflow much better; triage is faster.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-335 minutes')),
+('Discord', 'neutral', 'Labels and workflow for GitHub issues improved.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-345 minutes'));
+
+-- Yesterday: broader spread
+INSERT INTO feedback (source, sentiment, comment, timestamp) VALUES
+('Customer Support Tickets', 'negative', 'Login broken after SAML provider change.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-10 minutes')),
+('GitHub issues', 'negative', 'SSO redirect loop on Safari only.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-25 minutes')),
+('Email', 'neutral', 'Support took 3 days to respond to billing question.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-35 minutes')),
+('Discord', 'negative', 'No support reply for 48 hours on critical ticket.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-45 minutes')),
+('Customer Support Tickets', 'negative', 'API 504 during deploy; had to retry 5 times.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-55 minutes')),
+('GitHub issues', 'neutral', 'Timeout on API when exporting zones.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-65 minutes')),
+('community forums', 'negative', 'Email alerts not arriving; missed incident.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-75 minutes')),
+('Discord', 'neutral', 'Mail delivery delay for 2FA codes.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-85 minutes')),
+('GitHub issues', 'negative', 'Documentation for D1 missing migration examples.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-95 minutes')),
+('Customer Support Tickets', 'neutral', 'Docs for R2 multipart upload confusing.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-105 minutes')),
+('Discord', 'negative', 'Status confusion in ticket system; hard to track.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-115 minutes')),
+('GitHub issues', 'positive', 'State tracking for issues is clearer now.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-125 minutes')),
+('community forums', 'neutral', 'Ticket status update flow improved.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-135 minutes')),
+('Customer Support Tickets', 'negative', 'Invalid link in password reset email.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-145 minutes')),
+('GitHub issues', 'positive', 'Validation errors now show helpful messages.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-155 minutes')),
+('X/Twitter', 'negative', 'Session invalid after 30 min; too aggressive.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-165 minutes')),
+('Email', 'neutral', 'Auth token expiry not configurable.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-175 minutes')),
+('Customer Support Tickets', 'positive', 'Support resolved SSO issue quickly today.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-185 minutes')),
+('Discord', 'positive', 'API performance much better after last deploy.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-195 minutes')),
+('GitHub issues', 'neutral', 'Needs info workflow still has friction.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day', '-205 minutes'));
+
+-- 2–3 days ago
+INSERT INTO feedback (source, sentiment, comment, timestamp) VALUES
+('Customer Support Tickets', 'negative', 'SSO config fails to save; no error message.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-20 minutes')),
+('GitHub issues', 'negative', 'Login with Google OAuth broken.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-80 minutes')),
+('Discord', 'neutral', 'Support reply took 5 days; unacceptable.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-140 minutes')),
+('community forums', 'negative', 'API timeout on list-all-zones call.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-200 minutes')),
+('Customer Support Tickets', 'negative', '504 on API during backup export.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-260 minutes')),
+('GitHub issues', 'neutral', 'Email notification for mentions delayed.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-320 minutes')),
+('Email', 'negative', 'Docs for Workers incorrect; deploy fails.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-380 minutes')),
+('Discord', 'negative', 'Documentation scattered; right page hard to find.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-440 minutes')),
+('GitHub issues', 'neutral', 'Status tracking in dashboard confusing.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-500 minutes')),
+('Customer Support Tickets', 'positive', 'Ticket state labels are helpful now.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 days', '-560 minutes')),
+('X/Twitter', 'negative', 'Broken verification link in signup email.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-30 minutes')),
+('GitHub issues', 'negative', 'Validation error on optional API field.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-90 minutes')),
+('Discord', 'neutral', 'Auth session drops when switching orgs.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-150 minutes')),
+('Customer Support Tickets', 'negative', 'Support delay on enterprise account.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-210 minutes')),
+('community forums', 'negative', 'API 504 when fetching large dataset.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-270 minutes')),
+('GitHub issues', 'positive', 'Status page clarity improved.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-330 minutes')),
+('Email', 'neutral', 'Docs need update for new API version.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days', '-390 minutes'));
+
+-- 4–7 days ago
+INSERT INTO feedback (source, sentiment, comment, timestamp) VALUES
+('Customer Support Tickets', 'negative', 'SSO not working after IdP update.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-50 minutes')),
+('GitHub issues', 'neutral', 'Password reset link expired too fast.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-110 minutes')),
+('Discord', 'negative', 'Support ticket open 1 week; no response.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-170 minutes')),
+('community forums', 'negative', 'API gateway timeout during peak.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-230 minutes')),
+('Customer Support Tickets', 'neutral', 'Email delivery delayed by 4 hours.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-290 minutes')),
+('GitHub issues', 'negative', 'Documentation missing webhook examples.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-350 minutes')),
+('X/Twitter', 'neutral', 'Status confusion in ticket UI.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 days', '-410 minutes')),
+('Discord', 'positive', 'Tracking for issues is better now.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 days', '-20 minutes')),
+('Customer Support Tickets', 'negative', 'Invalid link in dashboard redirect.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 days', '-80 minutes')),
+('GitHub issues', 'neutral', 'Needs info workflow could be smoother.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 days', '-140 minutes')),
+('Email', 'negative', 'Login fails with MFA enabled.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days', '-30 minutes')),
+('community forums', 'negative', 'Support took 6 days to reply.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days', '-90 minutes')),
+('Customer Support Tickets', 'negative', 'API 504 under load during migration.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days', '-150 minutes')),
+('GitHub issues', 'neutral', 'Notification emails not delivered.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 days', '-210 minutes')),
+('Discord', 'negative', 'Docs for rate limits outdated.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days', '-40 minutes')),
+('Customer Support Tickets', 'neutral', 'Ticket status labels unclear.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days', '-100 minutes')),
+('GitHub issues', 'positive', 'State tracking for tickets improved.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days', '-160 minutes')),
+('X/Twitter', 'negative', 'Broken link in password reset flow.', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days', '-220 minutes'));

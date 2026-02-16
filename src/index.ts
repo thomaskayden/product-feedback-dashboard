@@ -14,6 +14,7 @@
 interface Env {
 	FEEDBACK_DB: D1Database;
 	AI: Ai;
+	ASSETS?: Fetcher;
 }
 
 type Summary = {
@@ -118,7 +119,7 @@ const CANONICAL_THEMES = [
 	'Email Delivery Issues',
 	'API Timeout Errors',
 	'Link / Validation Errors',
-	'Issue Status Confusion',
+	'Issue / Ticket Status',
 	'"Needs Info" Workflow Friction',
 	'Documentation Confusion',
 ] as const;
@@ -353,6 +354,163 @@ function trendText(percentChange: number, riskLevel?: RiskLevel): string {
 	return 'decrease';
 }
 
+/** Remove filler prefixes and normalize label. Max 5 words. Clean capitalization. */
+function postProcessThemeLabel(raw: string): string {
+	let s = raw.trim().replace(/^["']|["']$/g, '').replace(/\n.*/gs, '');
+	s = s.replace(/^(Improvement in|Issues with|Problems related to|Problem with|Issue with|Lack of|Difficulty with)\s*/gi, '');
+	s = s.replace(/^(The |A )\b/gi, '');
+	s = s.trim();
+	const words = s.split(/\s+/).filter(Boolean).slice(0, 5);
+	const titleWord = (w: string) =>
+		w.length >= 2 && w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+	return words.map(titleWord).join(' ');
+}
+
+/** Map AI output to stable product-level cluster. Order matters: more specific first. */
+function normalizeToCanonicalCluster(aiLabel: string): string {
+	const t = aiLabel.toLowerCase();
+	if (/\b(password reset|reset link|forgot password|link expired)\b/.test(t)) return 'Password Reset Issues';
+	if (/\b(api|timeout|500|endpoint|rate.?limit)\b/.test(t)) return 'API Timeout Errors';
+	if (/\b(login|sso|auth|authenticate|sign.?in|log.?in|token invalid|redirect|idp)\b/.test(t)) return 'Authentication / Login Issues';
+	if (/\b(deploy|session|invalid)\b/.test(t)) return 'Deployment / Session Issues';
+	if (/\b(ui|interface|ux|design|bug)\b/.test(t)) return 'UI / UX Issues';
+	if (/\b(email|notification|alert)\b/.test(t)) return 'Notifications / Alerts';
+	if (/\b(recovery|forgot)\b/.test(t)) return 'Account Recovery';
+	if (/\b(status|confusion|tracking)\b/.test(t)) return 'Issue / Ticket Status';
+	if (/\b(dashboard|latency|slow|performance)\b/.test(t)) return 'Dashboard Latency';
+	if (/\b(documentation|docs|guide|scattered)\b/.test(t)) return 'Documentation Confusion';
+	return aiLabel;
+}
+
+/** Keyword-based theme extraction. Must align with normalizeToCanonicalCluster targets. */
+function getThemeForCommentBackend(comment: string): string {
+	const text = (comment ?? '').toLowerCase();
+	if (/\b(login|sso|auth|password|authenticate|sign.?in|log.?in)\b/.test(text)) return 'Authentication / Login Issues';
+	if (/\b(api|rate.?limit|timeout|500|endpoint)\b/.test(text)) return 'API Timeout Errors';
+	if (/\b(password reset|reset link|forgot password|link expired)\b/.test(text)) return 'Password Reset Issues';
+	if (/\b(deploy|token|session|invalid)\b/.test(text)) return 'Deployment / Session Issues';
+	if (/\b(ui|interface|ux|design|bug)\b/.test(text)) return 'UI / UX Issues';
+	if (/\b(email|notification|alert)\b/.test(text)) return 'Notifications / Alerts';
+	if (/\b(reset|forgot|recovery)\b/.test(text)) return 'Account Recovery';
+	if (/\b(status|confusion|tracking)\b/.test(text)) return 'Issue / Ticket Status';
+	if (/\b(dashboard|latency|slow|performance)\b/.test(text)) return 'Dashboard Latency';
+	if (/\b(documentation|docs|guide|scattered)\b/.test(text)) return 'Documentation Confusion';
+	return 'Other';
+}
+
+/** Count items in bucket matching a canonical cluster. */
+function countForCluster(items: FeedbackRow[], cluster: string): { count: number; enterpriseCount: number } {
+	const matching = items.filter((r) => getThemeForCommentBackend(r.comment) === cluster);
+	const enterpriseCount = matching.filter((r) => ENTERPRISE_SOURCES.has(r.source.toLowerCase())).length;
+	return { count: matching.length, enterpriseCount };
+}
+
+/** Themes we never surface on KPI cards (feedback, not inherent "issues"). */
+const KPI_EXCLUDED_THEMES = new Set(['Notifications / Alerts', 'Issue / Ticket Status']);
+
+/** Fallback: get top theme and count from keyword grouping when AI fails. */
+function fallbackThemeAndCount(
+	items: FeedbackRow[],
+	excludeThemes: Set<string> = new Set(),
+	preferTheme?: string,
+): { label: string; count: number; enterpriseCount: number } | null {
+	if (items.length === 0) return null;
+	const byTheme = new Map<string, FeedbackRow[]>();
+	for (const r of items) {
+		const theme = getThemeForCommentBackend(r.comment);
+		if (theme === 'Other' || excludeThemes.has(theme)) continue;
+		if (!byTheme.has(theme)) byTheme.set(theme, []);
+		byTheme.get(theme)!.push(r);
+	}
+	// Prefer a specific theme when it exists in the bucket
+	if (preferTheme && byTheme.has(preferTheme)) {
+		const rows = byTheme.get(preferTheme)!;
+		const enterpriseCount = rows.filter((r) => ENTERPRISE_SOURCES.has(r.source.toLowerCase())).length;
+		return { label: preferTheme, count: rows.length, enterpriseCount };
+	}
+	const sorted = [...byTheme.entries()].sort((a, b) => b[1].length - a[1].length);
+	const top = sorted[0];
+	if (!top) return null;
+	const [label, rows] = top;
+	const enterpriseCount = rows.filter((r) => ENTERPRISE_SOURCES.has(r.source.toLowerCase())).length;
+	return { label, count: rows.length, enterpriseCount };
+}
+
+const LOW_IMPACT_MAX_ISSUES = 3;
+
+/** Get top N themes for Low Impact bucket (keyword-based). Excludes themes from Critical/Monitor. */
+function getTopThemesForLowBucket(
+	items: FeedbackRow[],
+	excludeThemes: Set<string>,
+	includeOther = false,
+): { label: string; count: number; enterpriseCount: number }[] {
+	if (items.length === 0) return [];
+	const byTheme = new Map<string, FeedbackRow[]>();
+	for (const r of items) {
+		const theme = getThemeForCommentBackend(r.comment);
+		if ((!includeOther && theme === 'Other') || excludeThemes.has(theme)) continue;
+		const key = theme === 'Other' && includeOther ? 'Various feedback' : theme;
+		if (!byTheme.has(key)) byTheme.set(key, []);
+		byTheme.get(key)!.push(r);
+	}
+	return [...byTheme.entries()]
+		.sort((a, b) => b[1].length - a[1].length)
+		.slice(0, LOW_IMPACT_MAX_ISSUES)
+		.map(([label, rows]) => {
+			const enterpriseCount = rows.filter((r) => ENTERPRISE_SOURCES.has(r.source.toLowerCase())).length;
+			return { label, count: rows.length, enterpriseCount };
+		});
+}
+
+const KPI_MIN_SHARE = 0.05; // 5% of bucket — do not surface one-off complaints
+
+const MONITOR_PREFERRED_THEME = 'Authentication / Login Issues';
+
+/** Workers AI: Identify dominant issue, normalize to cluster, return cluster count. */
+async function generateThemeWithCount(
+	env: Env,
+	items: FeedbackRow[],
+	excludeThemes: Set<string> = new Set(),
+	preferTheme?: string,
+): Promise<{ label: string; count: number; enterpriseCount: number } | null> {
+	if (items.length === 0) return null;
+	const bucketSize = items.length;
+	const comments = items.map((r) => r.comment).slice(0, 50);
+	const numbered = comments.map((c, i) => `${i + 1}. ${c}`).join('\n');
+	const model = '@cf/meta/llama-3.1-8b-instruct' as keyof AiModels;
+	const prompt = `You are analyzing product feedback. From the following comments, identify the single most recurring specific issue affecting enterprise customers or core product reliability. Return only a JSON object in this format:
+{
+  "issue": "Short 2-5 word label",
+  "matching_indices": [1, 2, 5, 7]
+}
+The matching_indices array must contain the 1-based line numbers of comments that describe this specific issue. Do not return explanations. Do not return generic phrases. The issue must reflect actual user-reported problems. Maximum 5 words.
+
+Comments:
+${numbered}`;
+	try {
+		const result: any = await env.AI.run(model, { prompt });
+		const text = typeof result === 'string' ? result : result?.response ?? result?.result ?? '';
+		const parsed = parseAiJson<{ issue?: string; matching_indices?: number[] }>(text);
+		const rawLabel = typeof parsed?.issue === 'string' ? parsed.issue.trim() : null;
+		const indices = Array.isArray(parsed?.matching_indices) ? parsed.matching_indices : [];
+		if (!rawLabel || indices.length === 0) return fallbackThemeAndCount(items, excludeThemes, preferTheme);
+		const processedLabel = postProcessThemeLabel(rawLabel);
+		if (processedLabel.split(/\s+/).length > 5) return fallbackThemeAndCount(items, excludeThemes, preferTheme);
+		const canonicalCluster = normalizeToCanonicalCluster(processedLabel);
+		if (excludeThemes.has(canonicalCluster)) return fallbackThemeAndCount(items, excludeThemes, preferTheme);
+		const { count, enterpriseCount } = countForCluster(items, canonicalCluster);
+		if (count < KPI_MIN_SHARE * bucketSize) return fallbackThemeAndCount(items, excludeThemes, preferTheme);
+		// Prefer specific theme when it exists in the bucket
+		if (preferTheme && !excludeThemes.has(preferTheme)) {
+			const preferred = countForCluster(items, preferTheme);
+			if (preferred.count >= 1) return { label: preferTheme, count: preferred.count, enterpriseCount: preferred.enterpriseCount };
+		}
+		return { label: canonicalCluster, count, enterpriseCount };
+	} catch {
+		return fallbackThemeAndCount(items, excludeThemes, preferTheme);
+	}
+}
+
 /** Workers AI: 2–3 sentence executive summary. Call once per request. */
 async function generateExecutiveSummary(
 	env: Env,
@@ -384,7 +542,17 @@ export default {
 		const url = new URL(request.url);
 
 		// -----------------------------
-		// HTML Dashboard (/)
+		// Static Assets (React SPA)
+		// -----------------------------
+		if (env.ASSETS) {
+			const assetResponse = await env.ASSETS.fetch(request);
+			if (assetResponse.status < 400) {
+				return assetResponse;
+			}
+		}
+
+		// -----------------------------
+		// HTML Dashboard (fallback when no assets)
 		// -----------------------------
 		if (url.pathname === '/') {
 			try {
@@ -682,6 +850,70 @@ Return ONLY valid JSON conforming to Summary.
 						error: 'Failed to generate summary from AI',
 						details: message,
 					},
+					{ status: 500 },
+				);
+			}
+		}
+
+		// -----------------------------
+		// GET /api/kpi-themes
+		// -----------------------------
+		if (url.pathname === '/api/kpi-themes') {
+			try {
+				if (!env.FEEDBACK_DB) {
+					return Response.json(
+						{ error: 'Missing D1 binding FEEDBACK_DB' },
+						{ status: 500 },
+					);
+				}
+				if (!env.AI) {
+					return Response.json(
+						{ error: 'Missing AI binding' },
+						{ status: 500 },
+					);
+				}
+
+				const { results } = await env.FEEDBACK_DB.prepare(
+					'SELECT id, source, sentiment, comment, timestamp FROM feedback ORDER BY timestamp DESC',
+				).all();
+				const items = results as FeedbackRow[];
+
+				const criticalItems = items.filter((r) => String(r.sentiment).toLowerCase() === 'negative');
+				const monitorItems = items.filter((r) => String(r.sentiment).toLowerCase() === 'neutral');
+				const lowItems = items.filter((r) => String(r.sentiment).toLowerCase() === 'positive');
+
+				const critical = criticalItems.length > 0 ? fallbackThemeAndCount(criticalItems) : null;
+				const monitorExclude = new Set(KPI_EXCLUDED_THEMES);
+				if (critical?.label) monitorExclude.add(critical.label);
+				const monitor = monitorItems.length > 0 ? fallbackThemeAndCount(monitorItems, monitorExclude, MONITOR_PREFERRED_THEME) : null;
+				const lowExclude = new Set(monitorExclude);
+				if (monitor?.label) lowExclude.add(monitor.label);
+				let lowIssues = getTopThemesForLowBucket(lowItems, lowExclude);
+				if (lowIssues.length === 0 && lowItems.length > 0) {
+					const fallbackLowExclude = new Set<string>();
+					if (critical?.label) fallbackLowExclude.add(critical.label);
+					if (monitor?.label) fallbackLowExclude.add(monitor.label);
+					lowIssues = getTopThemesForLowBucket(lowItems, fallbackLowExclude);
+				}
+				if (lowIssues.length === 0 && lowItems.length > 0) {
+					const minimalExclude = new Set<string>();
+					if (critical?.label) minimalExclude.add(critical.label);
+					if (monitor?.label) minimalExclude.add(monitor.label);
+					lowIssues = getTopThemesForLowBucket(lowItems, minimalExclude, true);
+				}
+
+				return Response.json(
+					{
+						critical: critical ? { label: critical.label, count: critical.count, enterpriseCount: critical.enterpriseCount } : null,
+						monitor: monitor ? { label: monitor.label, count: monitor.count, enterpriseCount: monitor.enterpriseCount } : null,
+						low: lowIssues.length > 0 ? { issues: lowIssues } : null,
+					},
+					{ headers: { 'Content-Type': 'application/json;charset=utf-8' } },
+				);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return Response.json(
+					{ error: 'Failed to generate KPI themes', details: message },
 					{ status: 500 },
 				);
 			}

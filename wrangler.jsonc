@@ -22,7 +22,8 @@
 			"database_name": "feedback-db",
 			"database_id": "a1c1f5e3-a6b0-4797-a621-00f99254ad8b"
 		}
-	]
+	],
+	"assets": { "directory": "frontend/dist", "binding": "ASSETS" }
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
