@@ -201,11 +201,22 @@ function App() {
 		return top ?? nextGlobalTheme(exclude);
 	};
 
-	/** Top 3 themes by today's count for Trend Snapshot (change-over-time focus). */
+	/** Top 3 themes for Trend Snapshot. Uses calendar date split when available; falls back to older vs newer half by timestamp when no yesterday data. */
 	const trendSnapshotData = (() => {
+		if (feedback.length === 0) return [];
 		const { today, yesterday } = getTodayYesterday();
-		const todayItems = feedback.filter((f) => dateOf(f.timestamp) === today);
-		const yesterdayItems = feedback.filter((f) => dateOf(f.timestamp) === yesterday);
+		let todayItems = feedback.filter((f) => dateOf(f.timestamp) === today);
+		let yesterdayItems = feedback.filter((f) => dateOf(f.timestamp) === yesterday);
+		// When no calendar split (e.g. seed data from old migration), use older vs newer half by timestamp
+		const hasCalendarSplit = todayItems.length > 0 && yesterdayItems.length > 0;
+		if (!hasCalendarSplit && feedback.length >= 4) {
+			const sorted = [...feedback].sort(
+				(a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+			);
+			const mid = Math.floor(sorted.length / 2);
+			yesterdayItems = sorted.slice(0, mid);
+			todayItems = sorted.slice(mid);
+		}
 		const todayByTheme = new Map<string, number>();
 		const yesterdayByTheme = new Map<string, number>();
 		for (const f of todayItems) {
@@ -219,16 +230,31 @@ function App() {
 			yesterdayByTheme.set(theme, (yesterdayByTheme.get(theme) ?? 0) + 1);
 		}
 		const allThemes = new Set([...todayByTheme.keys(), ...yesterdayByTheme.keys()]);
-		return [...allThemes]
+		const withDeltas = [...allThemes]
 			.map((theme) => {
 				const todayCount = todayByTheme.get(theme) ?? 0;
 				const yesterdayCount = yesterdayByTheme.get(theme) ?? 0;
 				const delta = todayCount - yesterdayCount;
-				return { theme, yesterdayCount, todayCount, delta };
+				const totalCount = todayCount + yesterdayCount;
+				return { theme, yesterdayCount, todayCount, totalCount, delta };
 			})
-			.filter((r) => (r.todayCount > 0 || r.yesterdayCount > 0) && r.delta !== 0)
-			.sort((a, b) => b.todayCount - a.todayCount)
+			.filter((r) => r.todayCount > 0 || r.yesterdayCount > 0);
+		if (withDeltas.length === 0) {
+			const byTheme = new Map<string, number>();
+			for (const f of feedback) {
+				const theme = getThemeForComment(f.comment);
+				if (theme === 'Other') continue;
+				byTheme.set(theme, (byTheme.get(theme) ?? 0) + 1);
+			}
+			const top = [...byTheme.entries()].sort((a, b) => b[1] - a[1])[0];
+			if (!top) return [{ theme: 'Various feedback', yesterdayCount: 0, todayCount: feedback.length, totalCount: feedback.length, delta: 0 }];
+			return [top].map(([theme, totalCount]) => ({ theme, yesterdayCount: totalCount, todayCount: totalCount, totalCount, delta: 0 }));
+		}
+		// Sort by largest absolute change first (most movement = most "trending"), then by today count
+		const topByTrend = withDeltas
+			.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || b.todayCount - a.todayCount)
 			.slice(0, 3);
+		return topByTrend;
 	})();
 
 	/** Count feedback in a bucket matching a given theme. For fallback when API has no data. */
@@ -489,21 +515,23 @@ function App() {
 							) : trendSnapshotData.length > 0 ? (
 								<ul className="trend-snapshot-list" role="list" aria-label="Theme trends">
 									{trendSnapshotData.map(({ theme, delta }, i) => {
-										const arrow = delta > 0 ? '▲' : '▼';
-										const deltaClass = delta > 0 ? 'trend-delta-increase' : 'trend-delta-decrease';
-										const deltaText = delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`;
+										const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '—';
+										// Red = up arrow (increase), Green = down arrow (decrease)
+										const deltaColor = delta > 0 ? '#b91c1c' : delta < 0 ? '#059669' : '#64748b';
+										const deltaText = delta > 0 ? `+${delta}` : delta < 0 ? `−${Math.abs(delta)}` : '0';
 										return (
 											<li key={i} className="trend-snapshot-item">
 												<span className="trend-snapshot-theme">{theme}</span>
-												<span className={`trend-snapshot-delta ${deltaClass}`}>
+												<span
+													className="trend-snapshot-delta"
+													style={{ color: deltaColor, fontWeight: 600 }}
+												>
 													{arrow} {deltaText}
 												</span>
 											</li>
 										);
 									})}
 								</ul>
-							) : feedback.length > 0 ? (
-								<p className="trend-snapshot-empty">No movement since yesterday.</p>
 							) : null}
 						</section>
 					</div>

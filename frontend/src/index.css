@@ -291,6 +291,10 @@
   color: #059669;
 }
 
+.trend-delta-steady {
+  color: var(--text-muted, #64748b);
+}
+
 .trend-snapshot-empty {
   font-size: 14px;
   color: var(--text-muted);
